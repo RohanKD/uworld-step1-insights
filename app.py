@@ -21,7 +21,13 @@ from parsers import (
     parse_summary_pdf,
     parse_test_result_pdf,
 )
-from claude_insights import analyze_question, analyze_test, generate_study_plan
+from claude_insights import (
+    analyze_image,
+    analyze_question,
+    analyze_test,
+    analyze_test_image,
+    generate_study_plan,
+)
 
 load_dotenv()
 
@@ -326,36 +332,63 @@ with tab3:
 with tab4:
     st.header("Test Review")
     st.caption(
-        "Upload a PDF of a specific UWorld test result. "
-        "**To export from UWorld:** open a completed test → Test Results → Print → Save as PDF"
+        "Upload a screenshot or PDF of a UWorld test result. "
+        "**To export:** open a completed test → Test Results → screenshot or Print → Save as PDF"
     )
 
-    test_file = st.file_uploader("Upload Test Result PDF", type="pdf", key="test_upload")
+    test_file = st.file_uploader(
+        "Upload Test Result", type=["pdf", "png", "jpg", "jpeg"], key="test_upload"
+    )
 
     if test_file:
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tf:
-            tf.write(test_file.read())
-            tmp_path = tf.name
+        test_is_image = test_file.type in ("image/png", "image/jpeg")
+        test_bytes = test_file.read()
 
-        with st.spinner("Parsing test..."):
-            try:
-                h, qdf = parse_test_result_pdf(tmp_path)
-                st.session_state["test_header"] = h
-                st.session_state["test_qdf"] = qdf
-            except Exception as e:
-                st.error(f"Could not parse PDF: {e}")
+        if test_is_image:
+            st.image(test_bytes, use_container_width=True)
+            st.session_state["test_image"] = test_bytes
+            st.session_state.pop("test_qdf", None)
+        else:
+            st.session_state.pop("test_image", None)
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tf:
+                tf.write(test_bytes)
+                tmp_path = tf.name
+            with st.spinner("Parsing test..."):
+                try:
+                    h, qdf = parse_test_result_pdf(tmp_path)
+                    st.session_state["test_header"] = h
+                    st.session_state["test_qdf"] = qdf
+                except Exception as e:
+                    st.error(f"Could not parse PDF: {e}")
 
-    if "test_qdf" in st.session_state:
+    # ── Image path: send straight to Gemini ──────────────────────────────
+    if "test_image" in st.session_state:
+        if api_key:
+            if st.button("Analyze This Test with AI", type="primary", key="ai_test_img"):
+                with st.spinner("Gemini is reviewing your test..."):
+                    try:
+                        analysis = analyze_test_image(st.session_state["test_image"], api_key)
+                        st.session_state["test_analysis"] = analysis
+                    except Exception as e:
+                        st.error(f"API error: {e}")
+
+            if "test_analysis" in st.session_state:
+                st.divider()
+                st.markdown(st.session_state["test_analysis"])
+        else:
+            st.info("Add your API key to get AI analysis of this test.")
+
+    # ── PDF path: structured parsing + optional AI ───────────────────────
+    elif "test_qdf" in st.session_state:
         h   = st.session_state["test_header"]
         qdf = st.session_state["test_qdf"]
 
         if qdf.empty:
             st.warning(
                 "Could not extract question rows from this PDF. "
-                "The format may differ — try exporting as PDF from UWorld's Print dialog."
+                "The format may differ — try uploading a screenshot instead."
             )
         else:
-            # ── Metrics ───────────────────────────────────────────────────────
             n_right = len(qdf[qdf["correct"]])
             n_wrong = len(qdf[~qdf["correct"]])
             score   = h.get("score_pct", round(n_right * 100 / max(len(qdf), 1)))
@@ -369,7 +402,6 @@ with tab4:
 
             st.divider()
 
-            # ── Question table ────────────────────────────────────────────────
             display = qdf.copy()
             display["Result"] = display["correct"].map({True: "✓", False: "✗"})
             if "time_spent_sec" in display.columns and "avg_time_spent_sec" in display.columns:
@@ -400,7 +432,6 @@ with tab4:
                 hide_index=True,
             )
 
-            # ── AI analysis ───────────────────────────────────────────────────
             if api_key:
                 if st.button("Analyze This Test with AI", type="primary", key="ai_test"):
                     with st.spinner("Gemini is reviewing your test..."):
@@ -414,7 +445,7 @@ with tab4:
                     st.divider()
                     st.markdown(st.session_state["test_analysis"])
             else:
-                st.info("Add your API key in the sidebar to get AI analysis of this test.")
+                st.info("Add your API key to get AI analysis of this test.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -423,25 +454,53 @@ with tab4:
 with tab5:
     st.header("Question Analysis")
     st.caption(
-        "Upload a PDF of an individual UWorld question + explanation. "
-        "**To export:** open a question in review mode → Print → Save as PDF"
+        "Upload a screenshot or PDF of a UWorld question + explanation. "
+        "**To export:** screenshot the question, or Print → Save as PDF"
     )
 
-    q_file = st.file_uploader("Upload Question PDF", type="pdf", key="q_upload")
+    q_file = st.file_uploader(
+        "Upload Question", type=["pdf", "png", "jpg", "jpeg"], key="q_upload"
+    )
 
     if q_file:
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tf:
-            tf.write(q_file.read())
-            tmp_path = tf.name
+        q_is_image = q_file.type in ("image/png", "image/jpeg")
+        q_bytes = q_file.read()
 
-        with st.spinner("Parsing question..."):
-            try:
-                q_data = parse_question_pdf(tmp_path)
-                st.session_state["q_data"] = q_data
-            except Exception as e:
-                st.error(f"Could not parse PDF: {e}")
+        if q_is_image:
+            st.image(q_bytes, use_container_width=True)
+            st.session_state["q_image"] = q_bytes
+            st.session_state.pop("q_data", None)
+        else:
+            st.session_state.pop("q_image", None)
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tf:
+                tf.write(q_bytes)
+                tmp_path = tf.name
+            with st.spinner("Parsing question..."):
+                try:
+                    q_data = parse_question_pdf(tmp_path)
+                    st.session_state["q_data"] = q_data
+                except Exception as e:
+                    st.error(f"Could not parse PDF: {e}")
 
-    if "q_data" in st.session_state:
+    # ── Image path: send straight to Gemini ──────────────────────────────
+    if "q_image" in st.session_state:
+        if api_key:
+            if st.button("Analyze with Gemini", type="primary", key="ai_q_img"):
+                with st.spinner("Gemini is analyzing..."):
+                    try:
+                        analysis = analyze_image(st.session_state["q_image"], api_key)
+                        st.session_state["q_analysis"] = analysis
+                    except Exception as e:
+                        st.error(f"API error: {e}")
+
+            if "q_analysis" in st.session_state:
+                st.divider()
+                st.markdown(st.session_state["q_analysis"])
+        else:
+            st.info("Add your API key to analyze this question.")
+
+    # ── PDF path: structured parsing + optional AI ───────────────────────
+    elif "q_data" in st.session_state:
         q_data = st.session_state["q_data"]
 
         status = "Incorrect" if not q_data.get("is_correct", True) else "Correct"
@@ -469,4 +528,4 @@ with tab5:
                 st.divider()
                 st.markdown(st.session_state["q_analysis"])
         else:
-            st.info("Add your API key in the sidebar to analyze this question.")
+            st.info("Add your API key to analyze this question.")

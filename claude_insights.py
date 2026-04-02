@@ -4,6 +4,8 @@ Gemini API integration for UWorld performance analysis.
 import google.generativeai as genai
 import pandas as pd
 from typing import Optional
+import PIL.Image
+import io
 
 
 def _client(api_key: Optional[str]):
@@ -13,6 +15,46 @@ def _client(api_key: Optional[str]):
 
 def _ask(model, prompt: str) -> str:
     response = model.generate_content(prompt)
+    return response.text
+
+
+# ─── Image-based analysis ────────────────────────────────────────────────────
+
+def analyze_image(image_bytes: bytes, api_key: Optional[str] = None) -> str:
+    model = _client(api_key)
+    img = PIL.Image.open(io.BytesIO(image_bytes))
+
+    prompt = """You are a USMLE Step 1 expert tutor. A student has uploaded a screenshot of a UWorld question and/or explanation.
+
+Look at the image carefully and provide:
+1. **Core concept tested** (1 sentence — what's the high-yield fact?)
+2. **Why students pick the wrong answer** — what's the common trap in this vignette?
+3. **The buzzword/pattern to memorize** for similar future questions
+4. **Mnemonic or memory hook** (2-3 sentences max)
+5. **How Step 1 might vary this question** — alternate presentations to watch for
+
+Be concise and punchy. Focus on retention."""
+
+    response = model.generate_content([prompt, img])
+    return response.text
+
+
+def analyze_test_image(image_bytes: bytes, api_key: Optional[str] = None) -> str:
+    model = _client(api_key)
+    img = PIL.Image.open(io.BytesIO(image_bytes))
+
+    prompt = """You are a USMLE Step 1 expert tutor. A student has uploaded a screenshot of their UWorld test results.
+
+Look at the image carefully and provide:
+1. **Pattern diagnosis**: what common threads link the wrong answers (topic clusters, concept gaps)?
+2. **For each wrong topic visible**: the exact concept to review + a one-line First Aid / Pathoma cross-reference
+3. **Timing feedback**: based on any timing data visible, is the student rushing or overthinking?
+4. **3 Anki search terms** the student should look up to create cards from this test
+5. **One encouraging but honest sentence** to close
+
+Be specific, reference actual topic names visible in the image, and keep it concise."""
+
+    response = model.generate_content([prompt, img])
     return response.text
 
 
