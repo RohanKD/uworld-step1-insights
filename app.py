@@ -31,14 +31,30 @@ st.set_page_config(
     layout="wide",
 )
 
-# ─── Default PDF paths ────────────────────────────────────────────────────────
-DOWNLOADS = Path.home() / "Downloads"
-DEFAULT_SUMMARY = DOWNLOADS / "uworlddata.pdf"
-DEFAULT_BREAKDOWNS = [
-    DOWNLOADS / "uworlddata3.pdf",
-    DOWNLOADS / "uworlddata4.pdf",
-    DOWNLOADS / "uworlddata2.pdf",
+# ─── Bundled PDF paths ────────────────────────────────────────────────────────
+DATA_DIR = Path(__file__).parent / "data"
+BUNDLED_SUMMARY = DATA_DIR / "uworlddata.pdf"
+BUNDLED_BREAKDOWNS = [
+    DATA_DIR / "uworlddata3.pdf",
+    DATA_DIR / "uworlddata4.pdf",
+    DATA_DIR / "uworlddata2.pdf",
 ]
+
+
+# ─── Auto-load bundled data on first run ─────────────────────────────────────
+if "summary" not in st.session_state and BUNDLED_SUMMARY.exists():
+    try:
+        st.session_state["summary"] = parse_summary_pdf(str(BUNDLED_SUMMARY))
+    except Exception:
+        pass
+
+if "breakdown" not in st.session_state:
+    paths = [str(p) for p in BUNDLED_BREAKDOWNS if p.exists()]
+    if paths:
+        try:
+            st.session_state["breakdown"] = load_breakdown_pdfs(paths)
+        except Exception:
+            pass
 
 
 # ─── Sidebar ──────────────────────────────────────────────────────────────────
@@ -49,30 +65,8 @@ with st.sidebar:
     # Load API key from Streamlit secrets or env var (never shown to user)
     api_key = st.secrets.get("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", ""))
 
-    st.divider()
-    st.subheader("Load Data")
-
-    if st.button("Load Default PDFs", type="primary", use_container_width=True):
-        with st.spinner("Parsing PDFs..."):
-            errors = []
-            try:
-                st.session_state["summary"] = parse_summary_pdf(str(DEFAULT_SUMMARY))
-            except Exception as e:
-                errors.append(f"Summary: {e}")
-
-            try:
-                paths = [str(p) for p in DEFAULT_BREAKDOWNS if p.exists()]
-                st.session_state["breakdown"] = load_breakdown_pdfs(paths)
-            except Exception as e:
-                errors.append(f"Breakdown: {e}")
-
-            if errors:
-                st.warning("\n".join(errors))
-            else:
-                name = st.session_state.get("summary", {}).get("user_name", "")
-                st.success(f"Loaded!{' (' + name + ')' if name else ''}")
-
-    st.caption("Or upload custom PDFs:")
+    st.subheader("Upload Custom Data")
+    st.caption("Default data is pre-loaded. Upload here to replace it.")
 
     summary_file = st.file_uploader("Summary PDF", type="pdf", key="su")
     if summary_file:
@@ -106,11 +100,7 @@ breakdown: pd.DataFrame = st.session_state.get("breakdown", pd.DataFrame())
 
 if not summary and breakdown.empty:
     st.title("UWorld Step 1 Insights")
-    st.info(
-        "Click **Load Default PDFs** in the sidebar to get started "
-        "(reads your ~/Downloads/uworlddata*.pdf files), "
-        "or upload PDFs manually."
-    )
+    st.info("No data could be loaded. Upload your UWorld PDF exports in the sidebar.")
     st.stop()
 
 
