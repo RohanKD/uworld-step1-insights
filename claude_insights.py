@@ -10,7 +10,7 @@ import io
 
 def _client(api_key: Optional[str]):
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel("gemini-2.0-flash")
+    return genai.GenerativeModel("gemini-2.0-flash-lite")
 
 
 def _ask(model, prompt: str) -> str:
