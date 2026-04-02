@@ -46,12 +46,8 @@ with st.sidebar:
     st.title("🩺 UWorld Insights")
     st.divider()
 
-    api_key = st.text_input(
-        "Gemini API Key",
-        value=os.getenv("GEMINI_API_KEY", ""),
-        type="password",
-        help="Required for AI analysis tabs",
-    )
+    # Load API key from Streamlit secrets or env var (never shown to user)
+    api_key = st.secrets.get("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", ""))
 
     st.divider()
     st.subheader("Load Data")
