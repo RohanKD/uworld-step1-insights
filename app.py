@@ -69,7 +69,7 @@ with st.sidebar:
     st.divider()
 
     # Load API key from Streamlit secrets or env var (never shown to user)
-    api_key = st.secrets.get("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", ""))
+    api_key = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY", ""))
 
     st.subheader("Upload Custom Data")
     st.caption("Default data is pre-loaded. Upload here to replace it.")
@@ -304,16 +304,16 @@ with tab3:
     st.header("AI-Powered Study Plan")
 
     if not api_key:
-        st.warning("Enter your Gemini API key in the sidebar to use AI features.")
+        st.warning("Enter your AI API key in the sidebar to use AI features.")
         st.stop()
 
     if summary or not breakdown.empty:
         st.caption(
-            "Gemini will analyze your full performance data and generate"
+            "AI will analyze your full performance data and generate"
             "a prioritized, personalized study plan."
         )
         if st.button("Generate Study Plan", type="primary", key="gen_plan"):
-            with st.spinner("Gemini is analyzing your data..."):
+            with st.spinner("AI is analyzing your data..."):
                 try:
                     plan = generate_study_plan(summary, breakdown, api_key)
                     st.session_state["study_plan"] = plan
@@ -361,11 +361,11 @@ with tab4:
                 except Exception as e:
                     st.error(f"Could not parse PDF: {e}")
 
-    # ── Image path: send straight to Gemini ──────────────────────────────
+    # ── Image path: send straight to AI ──────────────────────────────
     if "test_image" in st.session_state:
         if api_key:
             if st.button("Analyze This Test with AI", type="primary", key="ai_test_img"):
-                with st.spinner("Gemini is reviewing your test..."):
+                with st.spinner("AI is reviewing your test..."):
                     try:
                         analysis = analyze_test_image(st.session_state["test_image"], api_key)
                         st.session_state["test_analysis"] = analysis
@@ -434,7 +434,7 @@ with tab4:
 
             if api_key:
                 if st.button("Analyze This Test with AI", type="primary", key="ai_test"):
-                    with st.spinner("Gemini is reviewing your test..."):
+                    with st.spinner("AI is reviewing your test..."):
                         try:
                             analysis = analyze_test(h, qdf, api_key)
                             st.session_state["test_analysis"] = analysis
@@ -482,11 +482,11 @@ with tab5:
                 except Exception as e:
                     st.error(f"Could not parse PDF: {e}")
 
-    # ── Image path: send straight to Gemini ──────────────────────────────
+    # ── Image path: send straight to AI ──────────────────────────────
     if "q_image" in st.session_state:
         if api_key:
-            if st.button("Analyze with Gemini", type="primary", key="ai_q_img"):
-                with st.spinner("Gemini is analyzing..."):
+            if st.button("Analyze with AI", type="primary", key="ai_q_img"):
+                with st.spinner("AI is analyzing..."):
                     try:
                         analysis = analyze_image(st.session_state["q_image"], api_key)
                         st.session_state["q_analysis"] = analysis
@@ -516,8 +516,8 @@ with tab5:
             st.text(q_data.get("raw_text", "")[:3000])
 
         if api_key:
-            if st.button("Analyze with Gemini", type="primary", key="ai_q"):
-                with st.spinner("Gemini is analyzing..."):
+            if st.button("Analyze with AI", type="primary", key="ai_q"):
+                with st.spinner("AI is analyzing..."):
                     try:
                         analysis = analyze_question(q_data, api_key)
                         st.session_state["q_analysis"] = analysis

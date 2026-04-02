@@ -1,28 +1,46 @@
 """
-Gemini API integration for UWorld performance analysis.
+Groq API integration for UWorld performance analysis.
 """
-import google.generativeai as genai
+import base64
+from groq import Groq
 import pandas as pd
 from typing import Optional
-import PIL.Image
-import io
+
+TEXT_MODEL = "llama-3.3-70b-versatile"
+VISION_MODEL = "llama-3.2-90b-vision-preview"
 
 
-def _client(api_key: Optional[str]):
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel("gemini-2.0-flash-lite")
+def _client(api_key: Optional[str]) -> Groq:
+    return Groq(api_key=api_key)
 
 
-def _ask(model, prompt: str) -> str:
-    response = model.generate_content(prompt)
-    return response.text
+def _ask(client: Groq, prompt: str) -> str:
+    resp = client.chat.completions.create(
+        model=TEXT_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return resp.choices[0].message.content
 
 
 # ─── Image-based analysis ────────────────────────────────────────────────────
 
+def _ask_image(client: Groq, prompt: str, image_bytes: bytes) -> str:
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    resp = client.chat.completions.create(
+        model=VISION_MODEL,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+            ],
+        }],
+    )
+    return resp.choices[0].message.content
+
+
 def analyze_image(image_bytes: bytes, api_key: Optional[str] = None) -> str:
-    model = _client(api_key)
-    img = PIL.Image.open(io.BytesIO(image_bytes))
+    client = _client(api_key)
 
     prompt = """You are a USMLE Step 1 expert tutor. A student has uploaded a screenshot of a UWorld question and/or explanation.
 
@@ -35,13 +53,11 @@ Look at the image carefully and provide:
 
 Be concise and punchy. Focus on retention."""
 
-    response = model.generate_content([prompt, img])
-    return response.text
+    return _ask_image(client, prompt, image_bytes)
 
 
 def analyze_test_image(image_bytes: bytes, api_key: Optional[str] = None) -> str:
-    model = _client(api_key)
-    img = PIL.Image.open(io.BytesIO(image_bytes))
+    client = _client(api_key)
 
     prompt = """You are a USMLE Step 1 expert tutor. A student has uploaded a screenshot of their UWorld test results.
 
@@ -54,8 +70,7 @@ Look at the image carefully and provide:
 
 Be specific, reference actual topic names visible in the image, and keep it concise."""
 
-    response = model.generate_content([prompt, img])
-    return response.text
+    return _ask_image(client, prompt, image_bytes)
 
 
 # ─── Overall study plan ───────────────────────────────────────────────────────
@@ -65,7 +80,7 @@ def generate_study_plan(
     breakdown: pd.DataFrame,
     api_key: Optional[str] = None,
 ) -> str:
-    model = _client(api_key)
+    client = _client(api_key)
 
     score = summary.get("your_score_pct", "?")
     percentile = summary.get("your_percentile", "?")
@@ -115,7 +130,7 @@ Please give:
 
 Be direct, specific, and use the actual topic names from the data. No fluff."""
 
-    return _ask(model, prompt)
+    return _ask(client, prompt)
 
 
 # ─── Test-specific analysis ───────────────────────────────────────────────────
@@ -125,7 +140,7 @@ def analyze_test(
     questions: pd.DataFrame,
     api_key: Optional[str] = None,
 ) -> str:
-    model = _client(api_key)
+    client = _client(api_key)
 
     wrong = questions[~questions["correct"]]
     right = questions[questions["correct"]]
@@ -172,13 +187,13 @@ Please give:
 
 Be specific, reference actual topic names, and keep it concise."""
 
-    return _ask(model, prompt)
+    return _ask(client, prompt)
 
 
 # ─── Individual question analysis ────────────────────────────────────────────
 
 def analyze_question(question_data: dict, api_key: Optional[str] = None) -> str:
-    model = _client(api_key)
+    client = _client(api_key)
 
     raw = question_data.get("raw_text", "")[:4000]
     status = "INCORRECT" if not question_data.get("is_correct", True) else "CORRECT"
@@ -201,4 +216,4 @@ Please give:
 
 Be concise and punchy. Focus on retention."""
 
-    return _ask(model, prompt)
+    return _ask(client, prompt)
