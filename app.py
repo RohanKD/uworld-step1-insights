@@ -131,7 +131,7 @@ with tab1:
 
     # ── Key metrics ───────────────────────────────────────────────────────────
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Your Score",     f"{score}%",      f"{score - median:+d}% vs median")
+    c1.metric("Your Score",     f"{score}%")
     c2.metric("Percentile",     f"{percentile}th", help="Among all UWorld users")
     c3.metric("QBank Used",     f"{usage_pct}%",  f"{used}/{total} Qs")
     c4.metric("Avg Time/Q",     f"{your_time}s",  f"{your_time - other_time:+d}s vs others")
